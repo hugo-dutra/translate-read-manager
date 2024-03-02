@@ -2,6 +2,18 @@
   text-align: center;
 }
 
+.segmentText {
+  text-align: justify;
+  width: 100%;
+}
+
+.segmentText:after {
+  content: '';
+  display: inline-block;
+  width: 100%;
+}
+
+
 .App-logo {
   height: 40vmin;
   pointer-events: none;

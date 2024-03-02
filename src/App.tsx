@@ -1,65 +1,89 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
-// Definições de styled-components
-const TextArea = styled.textarea``;
-const Button = styled.button``;
-const ProgressBar = styled.div<{ width: string }>`
+// Styled components
+const TextArea = styled.textarea`
+  width: 100%;
+  margin-bottom: 20px;
+`;
+
+const Button = styled.button`
+  margin-bottom: 20px;
+`;
+
+const ProgressBar = styled.div<{ width: any }>`
   height: 20px;
   background-color: blue;
   width: ${({ width }) => width};
 `;
-const SegmentContainer = styled.div`
-  position: relative;
+
+const OverallProgress = styled.div<{ width: any }>`
+  height: 20px;
+  background-color: red;
+  width: ${({ width }) => width};
+  margin-top: 20px; // Espaçamento entre a barra de progresso do segmento e a geral
 `;
 
-// Componente App
-const App = () => {
-  const [jsonData, setJsonData] = useState<any>(null);
-  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
-  const [isActive, setIsActive] = useState(false);
-  const [progress, setProgress] = useState(0);
+const SegmentContainer = styled.div`
+  position: relative;
+  text-align: justify;
+  text-align-last: justify;
+  &:after {
+    content: '';
+    display: inline-block;
+    width: 100%;
+  }
+`;
 
-  // Função para iniciar o processo
+const App: React.FC = () => {
+  const [jsonData, setJsonData] = useState<any>(null);
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState<any>(0);
+  const [isActive, setIsActive] = useState<any>(false);
+  const [progress, setProgress] = useState<any>('0%');
+  const [overallProgress, setOverallProgress] = useState<any>('0%');
+
+  const handleLoadJson = (event: any) => {
+    const data = JSON.parse(event.target.value);
+    setJsonData(data);
+  };
+
   const handleStart = () => {
     setIsActive(true);
-    setCurrentSegmentIndex(0); // Reinicia ao primeiro segmento
-    setProgress(0); // Reinicia o progresso
+    setCurrentSegmentIndex(0); // Reset to first segment
+    setProgress('0%');
+    setOverallProgress('0%'); // Reset overall progress
   };
 
   useEffect(() => {
-    if (!isActive || !jsonData) return;
+    if (!isActive || !jsonData?.segments) return;
 
     const segment = jsonData.segments[currentSegmentIndex];
     if (!segment) {
-      setIsActive(false); // Se não houver mais segmentos, para o processo
+      setIsActive(false); // If no more segments, stop the process
       return;
     }
 
-    // Calcula a duração do segmento atual em segundos
     const segmentDuration = segment.end - segment.start;
-    const increment = 100 / (segmentDuration * 60); // Atualiza 60 vezes por segundo
+    const increment = 100 / (segmentDuration * 60); // Update 60 times per second for smooth progression
 
     const interval = setInterval(() => {
-      setProgress((prevProgress) => {
-        const newProgress = prevProgress + increment;
+      setProgress((prevProgress: any) => {
+        const newProgress = parseFloat(prevProgress) + increment;
         if (newProgress >= 100) {
           clearInterval(interval);
-          setCurrentSegmentIndex((prevIndex) => prevIndex + 1); // Avança para o próximo segmento
-          return 0; // Reinicia o progresso para o novo segmento
+          setCurrentSegmentIndex((prevIndex: any) => prevIndex + 1); // Move to next segment
+          return '0%'; // Reset progress for the new segment
         }
-        return newProgress;
+        return `${newProgress}%`;
       });
     }, 1000 / 60);
 
-    return () => clearInterval(interval);
-  }, [isActive, jsonData, currentSegmentIndex]);
+    // Update overall progress
+    const overallIncrement = 100 / jsonData.segments.length;
+    setOverallProgress(`${Math.min((currentSegmentIndex + 1) * overallIncrement, 100)}%`);
 
-  // Função para carregar e parsear o JSON colado
-  const handleLoadJson = (e:any) => {
-    const data = JSON.parse(e.target.value);
-    setJsonData(data);
-  };
+    return () => clearInterval(interval);
+  }, [isActive, jsonData, currentSegmentIndex, progress]);
 
   return (
     <div>
@@ -67,10 +91,11 @@ const App = () => {
       <Button onClick={handleStart}>Iniciar Leitura</Button>
       {jsonData && jsonData.segments[currentSegmentIndex] && (
         <SegmentContainer>
-          <ProgressBar width={`${progress}%`} />
-          <p>Leia agora: {jsonData.segments[currentSegmentIndex].text}</p>
+          <ProgressBar width={progress} />
+          <p>{jsonData.segments[currentSegmentIndex].text}</p>
         </SegmentContainer>
       )}
+      <OverallProgress width={overallProgress} />
     </div>
   );
 };
