@@ -17,11 +17,18 @@ const ProgressBar = styled.div<{ width: any }>`
   width: ${({ width }) => width};
 `;
 
+const OverallProgressContainer = styled.div`
+  margin-top: 20px;
+`;
+
 const OverallProgress = styled.div<{ width: any }>`
   height: 20px;
   background-color: red;
   width: ${({ width }) => width};
-  margin-top: 20px; // Espaçamento entre a barra de progresso do segmento e a geral
+`;
+
+const TimeLapseLabel = styled.span`
+  margin-left: 10px;
 `;
 
 const SegmentContainer = styled.div`
@@ -39,8 +46,10 @@ const App: React.FC = () => {
   const [jsonData, setJsonData] = useState<any>(null);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState<any>(0);
   const [isActive, setIsActive] = useState<any>(false);
+  const [isPaused, setIsPaused] = useState<any>(false);
   const [progress, setProgress] = useState<any>('0%');
   const [overallProgress, setOverallProgress] = useState<any>('0%');
+  const [timeElapsed, setTimeElapsed] = useState<any>(0);
 
   const handleLoadJson = (event: any) => {
     const data = JSON.parse(event.target.value);
@@ -49,13 +58,31 @@ const App: React.FC = () => {
 
   const handleStart = () => {
     setIsActive(true);
-    setCurrentSegmentIndex(0); // Reset to first segment
+    setIsPaused(false);
+    setCurrentSegmentIndex(0);
     setProgress('0%');
-    setOverallProgress('0%'); // Reset overall progress
+    setOverallProgress('0%');
+    setTimeElapsed(0); // Reset time elapsed
+  };
+
+  const togglePauseResume = () => {
+    setIsPaused(!isPaused);
   };
 
   useEffect(() => {
-    if (!isActive || !jsonData?.segments) return;
+    let interval: any;
+
+    if (isActive && !isPaused) {
+      interval = setInterval(() => {
+        setTimeElapsed((prevTime: any) => prevTime + 1);
+      }, 1000); // Update every second
+    }
+
+    return () => clearInterval(interval);
+  }, [isActive, isPaused]);
+
+  useEffect(() => {
+    if (!isActive || !jsonData?.segments || isPaused) return;
 
     const segment = jsonData.segments[currentSegmentIndex];
     if (!segment) {
@@ -83,19 +110,23 @@ const App: React.FC = () => {
     setOverallProgress(`${Math.min((currentSegmentIndex + 1) * overallIncrement, 100)}%`);
 
     return () => clearInterval(interval);
-  }, [isActive, jsonData, currentSegmentIndex, progress]);
+  }, [isActive, jsonData, currentSegmentIndex, progress, isPaused]);
 
   return (
     <div>
       <TextArea onBlur={handleLoadJson} placeholder="Cole o JSON aqui" />
       <Button onClick={handleStart}>Iniciar Leitura</Button>
+      <Button onClick={togglePauseResume}>{isPaused ? 'Retomar' : 'Pausar'}</Button>
       {jsonData && jsonData.segments[currentSegmentIndex] && (
         <SegmentContainer>
           <ProgressBar width={progress} />
           <p>{jsonData.segments[currentSegmentIndex].text}</p>
         </SegmentContainer>
       )}
-      <OverallProgress width={overallProgress} />
+      <OverallProgressContainer>
+        <OverallProgress width={overallProgress} />
+        <TimeLapseLabel>{timeElapsed} segundos</TimeLapseLabel>
+      </OverallProgressContainer>
     </div>
   );
 };
