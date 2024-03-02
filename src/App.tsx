@@ -1,57 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import styled from 'styled-components';
+import { TextField, Button, CssBaseline, ThemeProvider, createTheme, Box, LinearProgress } from '@mui/material';
 
-// Styled components
-const TextArea = styled.textarea`
-  width: 100%;
-  margin-bottom: 20px;
-`;
-
-const Button = styled.button`
-  margin-bottom: 20px;
-`;
-
-const ProgressBar = styled.div<{ width: any }>`
-  height: 20px;
-  background-color: blue;
-  width: ${({ width }) => width};
-`;
-
-const OverallProgressContainer = styled.div`
-  margin-top: 20px;
-`;
-
-const OverallProgress = styled.div<{ width: any }>`
-  height: 20px;
-  background-color: red;
-  width: ${({ width }) => width};
-`;
-
-const TimeLapseLabel = styled.span`
-  margin-left: 10px;
-`;
-
-const SegmentContainer = styled.div`
-  position: relative;
-  text-align: justify;
-  text-align-last: justify;
-  &:after {
-    content: '';
-    display: inline-block;
-    width: 100%;
-  }
-`;
+// Criar um tema escuro
+const theme = createTheme({
+  palette: {
+    mode: 'dark',
+  },
+});
 
 const App: React.FC = () => {
   const [jsonData, setJsonData] = useState<any>(null);
-  const [currentSegmentIndex, setCurrentSegmentIndex] = useState<any>(0);
-  const [isActive, setIsActive] = useState<any>(false);
-  const [isPaused, setIsPaused] = useState<any>(false);
-  const [progress, setProgress] = useState<any>('0%');
-  const [overallProgress, setOverallProgress] = useState<any>('0%');
-  const [timeElapsed, setTimeElapsed] = useState<any>(0);
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState<number>(0);
+  const [isActive, setIsActive] = useState<boolean>(false);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [progress, setProgress] = useState<number>(0);
+  const [overallProgress, setOverallProgress] = useState<number>(0);
+  const [timeElapsed, setTimeElapsed] = useState<number>(0);
 
-  const handleLoadJson = (event: any) => {
+  const handleLoadJson = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const data = JSON.parse(event.target.value);
     setJsonData(data);
   };
@@ -60,74 +26,88 @@ const App: React.FC = () => {
     setIsActive(true);
     setIsPaused(false);
     setCurrentSegmentIndex(0);
-    setProgress('0%');
-    setOverallProgress('0%');
-    setTimeElapsed(0); // Reset time elapsed
+    setProgress(0);
+    setOverallProgress(0);
+    setTimeElapsed(0);
   };
 
   const togglePauseResume = () => {
     setIsPaused(!isPaused);
   };
 
+  // Primeiro useEffect para gerenciar pausa/resumo e atualização do tempo transcorrido
   useEffect(() => {
     let interval: any;
-
     if (isActive && !isPaused) {
       interval = setInterval(() => {
-        setTimeElapsed((prevTime: any) => prevTime + 1);
-      }, 1000); // Update every second
+        setTimeElapsed((prevTime) => prevTime + 1);
+      }, 1000);
     }
-
     return () => clearInterval(interval);
   }, [isActive, isPaused]);
 
+  // Segundo useEffect atualizado para gerenciar o progresso do segmento e o progresso geral
   useEffect(() => {
     if (!isActive || !jsonData?.segments || isPaused) return;
 
-    const segment = jsonData.segments[currentSegmentIndex];
-    if (!segment) {
-      setIsActive(false); // If no more segments, stop the process
-      return;
+    // Calcula o progresso com base no tempo total transcorrido e na duração total
+    const totalTime = jsonData.segments.reduce((acc: number, segment: any) => acc + (segment.end - segment.start), 0);
+    const currentProgress = (timeElapsed + 1) / totalTime * 100;
+    setOverallProgress(currentProgress);
+
+    // Atualiza o índice do segmento atual com base no tempo transcorrido
+    let timeSum = 0;
+    let newIndex = 0;
+    for (let i = 0; i < jsonData.segments.length; i++) {
+      timeSum += jsonData.segments[i].end - jsonData.segments[i].start;
+      if (timeElapsed + 1 <= timeSum) {
+        newIndex = i;
+        break;
+      }
     }
+    setCurrentSegmentIndex(newIndex);
 
-    const segmentDuration = segment.end - segment.start;
-    const increment = 100 / (segmentDuration * 60); // Update 60 times per second for smooth progression
+    // Calcula o progresso dentro do segmento atual
+    const segmentTimeElapsed = timeElapsed + 1 - (timeSum - (jsonData.segments[newIndex].end - jsonData.segments[newIndex].start));
+    const segmentProgress = (segmentTimeElapsed / (jsonData.segments[newIndex].end - jsonData.segments[newIndex].start)) * 100;
+    setProgress(segmentProgress);
 
-    const interval = setInterval(() => {
-      setProgress((prevProgress: any) => {
-        const newProgress = parseFloat(prevProgress) + increment;
-        if (newProgress >= 100) {
-          clearInterval(interval);
-          setCurrentSegmentIndex((prevIndex: any) => prevIndex + 1); // Move to next segment
-          return '0%'; // Reset progress for the new segment
-        }
-        return `${newProgress}%`;
-      });
-    }, 1000 / 60);
-
-    // Update overall progress
-    const overallIncrement = 100 / jsonData.segments.length;
-    setOverallProgress(`${Math.min((currentSegmentIndex + 1) * overallIncrement, 100)}%`);
-
-    return () => clearInterval(interval);
-  }, [isActive, jsonData, currentSegmentIndex, progress, isPaused]);
+  }, [isActive, isPaused, timeElapsed, jsonData]);
 
   return (
-    <div>
-      <TextArea onBlur={handleLoadJson} placeholder="Cole o JSON aqui" />
-      <Button onClick={handleStart}>Iniciar Leitura</Button>
-      <Button onClick={togglePauseResume}>{isPaused ? 'Retomar' : 'Pausar'}</Button>
-      {jsonData && jsonData.segments[currentSegmentIndex] && (
-        <SegmentContainer>
-          <ProgressBar width={progress} />
-          <p>{jsonData.segments[currentSegmentIndex].text}</p>
-        </SegmentContainer>
-      )}
-      <OverallProgressContainer>
-        <OverallProgress width={overallProgress} />
-        <TimeLapseLabel>{timeElapsed} segundos</TimeLapseLabel>
-      </OverallProgressContainer>
-    </div>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Box sx={{ p: 3 }}>
+        <TextField
+          fullWidth
+          label="Cole o JSON aqui"
+          multiline
+          rows={4}
+          onBlur={(event: React.FocusEvent<HTMLTextAreaElement>) => handleLoadJson(event)}
+          variant="outlined"
+          margin="normal"
+        />
+        <Button variant="contained" color="primary" onClick={handleStart} sx={{ mr: 1 }}>
+          Iniciar Leitura
+        </Button>
+        <Button variant="contained" color="secondary" onClick={togglePauseResume}>
+          {isPaused ? 'Retomar' : 'Pausar'}
+        </Button>
+        {jsonData && jsonData.segments[currentSegmentIndex] && (
+          <Box sx={{ mt: 2, mb: 1 }}>
+            <LinearProgress variant="determinate" value={progress} />
+            <Box sx={{ mt: 2, textAlign: 'justify', width: '200%' }}>
+              {jsonData.segments[currentSegmentIndex].text}
+            </Box>
+
+          </Box>
+        )}
+        <Box sx={{ mt: 2 }}>
+          <LinearProgress variant="determinate" value={overallProgress} color="secondary" />
+          <Box sx={{ mt: 1 }}>{timeElapsed} segundos</Box>
+        </Box>
+      </Box>
+    </ThemeProvider>
   );
 };
 
